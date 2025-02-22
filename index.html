@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan Report Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        .card-header { background-color: #2c3e50; color: white; }
+        .thumbnail { width: 100px; height: 75px; object-fit: cover; cursor: pointer; }
+        #imageModal img { max-width: 100%; max-height: 80vh; }
+        .filter-btn { margin: 2px; min-width: 100px; }
+        .print-header { display: none; }
+        @media print {
+            .no-print { display: none; }
+            .print-header { display: block; text-align: center; margin-bottom: 20px; }
+            table { width: 100%!important; }
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid py-4">
+        <!-- File Upload -->
+        <div class="mb-4 no-print">
+            <input type="file" id="csvFile" accept=".csv" class="form-control">
+        </div>
+
+        <!-- Report Content -->
+        <div id="reportContent" style="display: none;">
+            <!-- Controls -->
+            <div class="d-flex justify-content-between mb-3 no-print">
+                <div>
+                    <button class="btn btn-success filter-btn" data-status="completed">Completed</button>
+                    <button class="btn btn-danger filter-btn" data-status="pending">Pending</button>
+                    <button class="btn btn-primary filter-btn" data-status="all">All</button>
+                </div>
+                <button class="btn btn-dark" onclick="window.print()">Print Report</button>
+            </div>
+            
+            <!-- Summary Cards -->
+            <div class="row mb-4" id="summaryCards"></div>
+
+            <!-- Data Table -->
+            <div class="card shadow">
+                <div class="card-header">
+                    <h5 class="mb-0">Scan Details - <span id="reportDate"></span></h5>
+                </div>
+                <div class="card-body table-responsive">
+                    <table class="table table-hover" id="scanTable">
+                        <thead>
+                            <tr>
+                                <th>QR Code</th>
+                                <th>Status</th>
+                                <th>Supervisor</th>
+                                <th>Ward</th>
+                                <th>Scan Duration</th>
+                                <th>Before Image</th>
+                                <th>After Image</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Print Header -->
+        <div class="print-header">
+            <h2>Scanning Activity Report</h2>
+            <h4 id="printDate"></h4>
+            <p>Generated on: <span id="generationDate"></span></p>
+        </div>
+    </div>
+
+    <!-- Image Modal -->
+    <div class="modal fade" id="imageModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <img id="modalImage" src="" alt="Enlarged scan image">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentData = [];
+        let currentFilters = { status: 'all' };
+
+        document.getElementById('csvFile').addEventListener('change', handleFileUpload);
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            
+            Papa.parse(file, {
+                header: true,
+                dynamicTyping: (header) => {
+                    // Keep date columns as strings
+                    return !['Before Scan', 'After Scan'].includes(header);
+                },
+                complete: function(results) {
+                    if (results.errors.length) {
+                        alert('Error parsing CSV: ' + results.errors[0].message);
+                        return;
+                    }
+                    currentData = results.data.filter(item => item['Before Scan']);
+                    generateReport(currentData);
+                    document.getElementById('reportContent').style.display = 'block';
+                }
+            });
+        }
+
+        function generateReport(data) {
+            // Filter valid data with valid dates
+            const validData = data.filter(item => {
+                const beforeScan = item['Before Scan'];
+                if (!beforeScan || beforeScan === 'null') return false;
+                
+                try {
+                    const datePart = String(beforeScan).split('T')[0];
+                    const dateObj = new Date(datePart);
+                    return !isNaN(dateObj.getTime());
+                } catch (e) {
+                    return false;
+                }
+            });
+
+            if (!validData.length) {
+                alert('No valid data found');
+                return;
+            }
+
+            // Get latest date
+            const dates = validData.map(item => {
+                const datePart = String(item['Before Scan']).split('T')[0];
+                return new Date(datePart);
+            });
+            const latestDate = new Date(Math.max(...dates)).toISOString().split('T')[0];
+
+            // Filter data for latest date
+            const filteredData = validData.filter(item => {
+                const itemDate = new Date(
+                    String(item['Before Scan']).split('T')[0]
+                ).toISOString().split('T')[0];
+                return itemDate === latestDate;
+            });
+
+            // Set report dates
+            document.getElementById('reportDate').textContent = latestDate;
+            document.getElementById('printDate').textContent = `Date: ${latestDate}`;
+            document.getElementById('generationDate').textContent = new Date().toLocaleDateString();
+
+            // Prepare summary
+            const summary = {
+                total: filteredData.length,
+                completed: filteredData.filter(item => item['After Scan'] !== 'null').length,
+                pending: filteredData.filter(item => item['After Scan'] === 'null').length,
+                supervisors: new Set(filteredData.map(item => {
+                    const parts = String(item.Name).split(':');
+                    return parts.length > 1 ? parts[1].trim() : 'Unknown';
+                })).size
+            };
+
+            // Update summary cards
+            const summaryHTML = `
+                <div class="col-md-3 mb-3">
+                    <div class="card shadow">
+                        <div class="card-header">Total Scans<br><small>${latestDate}</small></div>
+                        <div class="card-body"><h2>${summary.total}</h2></div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card shadow">
+                        <div class="card-header">Completed<br><small>${latestDate}</small></div>
+                        <div class="card-body"><h2 class="text-success">${summary.completed}</h2></div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card shadow">
+                        <div class="card-header">Pending<br><small>${latestDate}</small></div>
+                        <div class="card-body"><h2 class="text-danger">${summary.pending}</h2></div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card shadow">
+                        <div class="card-header">Supervisors<br><small>${latestDate}</small></div>
+                        <div class="card-body"><h2>${summary.supervisors}</h2></div>
+                    </div>
+                </div>`;
+            document.getElementById('summaryCards').innerHTML = summaryHTML;
+
+            // Render table
+            renderTable(filteredData);
+            addFilterHandlers();
+        }
+
+        function renderTable(data) {
+            const tbody = document.querySelector('#scanTable tbody');
+            tbody.innerHTML = '';
+            
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.dataset.status = row['After Scan'] === 'null' ? 'pending' : 'completed';
+
+                // QR Code
+                const tdQr = document.createElement('td');
+                tdQr.textContent = row.Qrcodeid;
+
+                // Status
+                const tdStatus = document.createElement('td');
+                const statusBadge = document.createElement('span');
+                statusBadge.className = row['After Scan'] === 'null' ? 'badge bg-danger' : 'badge bg-success';
+                statusBadge.textContent = row['After Scan'] === 'null' ? 'Pending' : 'Completed';
+                tdStatus.appendChild(statusBadge);
+
+                // Supervisor
+                const tdSupervisor = document.createElement('td');
+                const nameParts = String(row.Name).split(':');
+                const supervisorBadge = document.createElement('span');
+                supervisorBadge.className = 'badge bg-primary';
+                supervisorBadge.textContent = nameParts.length > 1 ? nameParts[1].trim() : 'Unknown';
+                tdSupervisor.appendChild(supervisorBadge);
+
+                // Ward
+                const tdWard = document.createElement('td');
+                tdWard.textContent = row.Ward;
+
+                // Scan Duration
+                const tdDuration = document.createElement('td');
+                tdDuration.textContent = calculateDuration(row['Before Scan'], row['After Scan']);
+
+                // Before Image
+                const tdBeforeImage = document.createElement('td');
+                if (row['Before Image'] === 'null') {
+                    tdBeforeImage.textContent = 'N/A';
+                } else {
+                    const img = document.createElement('img');
+                    img.className = 'thumbnail';
+                    img.src = row['Before Image'];
+                    img.alt = 'Before scan image';
+                    img.addEventListener('click', showModalImage);
+                    tdBeforeImage.appendChild(img);
+                }
+
+                // After Image
+                const tdAfterImage = document.createElement('td');
+                if (row['After Image'] === 'null') {
+                    tdAfterImage.textContent = 'N/A';
+                } else {
+                    const img = document.createElement('img');
+                    img.className = 'thumbnail';
+                    img.src = row['After Image'];
+                    img.alt = 'After scan image';
+                    img.addEventListener('click', showModalImage);
+                    tdAfterImage.appendChild(img);
+                }
+
+                // Append all cells
+                tr.append(tdQr, tdStatus, tdSupervisor, tdWard, tdDuration, tdBeforeImage, tdAfterImage);
+                tbody.appendChild(tr);
+            });
+        }
+
+        function calculateDuration(start, end) {
+            if (end === 'null') return 'N/A';
+            try {
+                const startDate = new Date(start);
+                const endDate = new Date(end);
+                if (isNaN(startDate) || isNaN(endDate)) return 'Invalid date';
+                
+                const diff = endDate - startDate;
+                if (diff < 0) return 'Negative duration';
+                
+                const minutes = Math.floor(diff / 60000);
+                const seconds = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
+                return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+            } catch {
+                return 'Error';
+            }
+        }
+
+        function addFilterHandlers() {
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentFilters.status = btn.dataset.status;
+                    applyFilters();
+                });
+            });
+        }
+
+        function applyFilters() {
+            document.querySelectorAll('#scanTable tbody tr').forEach(tr => {
+                const show = currentFilters.status === 'all' || 
+                            tr.dataset.status === currentFilters.status;
+                tr.style.display = show ? '' : 'none';
+            });
+        }
+
+        function showModalImage(e) {
+            document.getElementById('modalImage').src = e.target.src;
+            new bootstrap.Modal(document.getElementById('imageModal')).show();
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
