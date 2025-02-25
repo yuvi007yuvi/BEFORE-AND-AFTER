@@ -17,9 +17,41 @@
             .print-header { display: block; text-align: center; margin-bottom: 20px; }
             table { width: 100%!important; }
         }
+        body { background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); color: white; font-family: 'Arial', sans-serif; }
+        .card { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(15px); border-radius: 20px; padding: 15px; }
+        .card-header { background-color: transparent; color: #00eaff; font-weight: bold; text-align: center; font-size: 1.3rem; }
+        .card-body { color: white; }
+        .thumbnail { width: 100px; height: 75px; object-fit: cover; cursor: pointer; border-radius: 10px; transition: transform 0.3s; }
+        .thumbnail:hover { transform: scale(1.1); }
+        #imageModal img { max-width: 100%; max-height: 80vh; border-radius: 10px; }
+        .filter-btn { margin: 5px; min-width: 120px; border-radius: 25px; font-size: 1rem; transition: 0.3s; }
+        .filter-btn:hover { transform: scale(1.05); }
+        .print-header { display: none; }
+        a { color: #00eaff; text-decoration: none; font-weight: bold; }
+        a:hover { text-decoration: underline; color: #ff9800; }
+        @media print {
+            .no-print { display: none; }
+            .print-header { display: block; text-align: center; margin-bottom: 20px; }
+            table { width: 100%!important; }
+        }
     </style>
 </head>
 <body class="bg-light">
+    <div class="container-fluid py-4">
+        <!-- Instructions -->
+        <div class="card mb-4 p-3 shadow-lg">
+            <div class="card-header">🚀 How to Use</div>
+            <div class="card-body">
+                <ol>
+                    <li>Click <b>Browse</b> to upload a <b>CSV file</b>.</li>
+                    <li>Ensure the file has valid <b>Before Scan</b> and <b>After Scan</b> timestamps.</li>
+                    <li>Use the <b>filter buttons</b> to view <b>Completed</b>, <b>Pending</b>, or <b>All</b> scans.</li>
+                    <li>Click on <b>Before/After Images</b> to view an enlarged preview.</li>
+                    <li>Click <b>Print Report</b> to generate a <b>printable version</b>.</li>
+                    <li>Access the live demo: <a href="https://yuvi007yuvi.github.io/BEFORE-AND-AFTER/" target="_blank">🔗 Scan Report Generator</a></li>
+                </ol>
+            </div>
+        </div>
     <div class="container-fluid py-4">
         <!-- File Upload -->
         <div class="mb-4 no-print">
