@@ -62,10 +62,13 @@
         <div id="reportContent" style="display: none;">
             <!-- Controls -->
             <div class="d-flex justify-content-between mb-3 no-print">
-                <div>
+                <div class="d-flex align-items-center gap-2">
                     <button class="btn btn-success filter-btn" data-status="completed">Completed</button>
                     <button class="btn btn-danger filter-btn" data-status="pending">Pending</button>
                     <button class="btn btn-primary filter-btn" data-status="all">All</button>
+                    <select id="qrFilter" class="form-select" style="width: auto; min-width: 150px;">
+                        <option value="all">All QR Codes</option>
+                    </select>
                 </div>
                 <button class="btn btn-dark" onclick="window.print()">Print Report</button>
             </div>
@@ -118,7 +121,7 @@
 
     <script>
         let currentData = [];
-        let currentFilters = { status: 'all' };
+        let currentFilters = { status: 'all', qrCode: 'all' };
 
         document.getElementById('csvFile').addEventListener('change', handleFileUpload);
 
@@ -144,6 +147,17 @@
         }
 
         function generateReport(data) {
+            // Populate QR Code filter
+            const qrCodes = [...new Set(data.map(item => item.Qrcodeid))].sort();
+            const qrFilter = document.getElementById('qrFilter');
+            qrFilter.innerHTML = '<option value="all">All QR Codes</option>';
+            qrCodes.forEach(code => {
+                const option = document.createElement('option');
+                option.value = code;
+                option.textContent = `QR: ${code}`;
+                qrFilter.appendChild(option);
+            });
+
             // Filter valid data with valid dates
             const validData = data.filter(item => {
                 const beforeScan = item['Before Scan'];
@@ -163,20 +177,15 @@
                 return;
             }
 
-            // Get latest date
+            // Get latest date for display purposes only
             const dates = validData.map(item => {
                 const datePart = String(item['Before Scan']).split('T')[0];
                 return new Date(datePart);
             });
             const latestDate = new Date(Math.max(...dates)).toISOString().split('T')[0];
 
-            // Filter data for latest date
-            const filteredData = validData.filter(item => {
-                const itemDate = new Date(
-                    String(item['Before Scan']).split('T')[0]
-                ).toISOString().split('T')[0];
-                return itemDate === latestDate;
-            });
+            // Use all valid data instead of filtering by date
+            const filteredData = validData;
 
             // Set report dates
             document.getElementById('reportDate').textContent = latestDate;
@@ -319,13 +328,20 @@
                     applyFilters();
                 });
             });
+
+            document.getElementById('qrFilter').addEventListener('change', (e) => {
+                currentFilters.qrCode = e.target.value;
+                applyFilters();
+            });
         }
 
         function applyFilters() {
             document.querySelectorAll('#scanTable tbody tr').forEach(tr => {
-                const show = currentFilters.status === 'all' || 
-                            tr.dataset.status === currentFilters.status;
-                tr.style.display = show ? '' : 'none';
+                const statusMatch = currentFilters.status === 'all' || 
+                                   tr.dataset.status === currentFilters.status;
+                const qrMatch = currentFilters.qrCode === 'all' || 
+                               tr.querySelector('td:first-child').textContent === currentFilters.qrCode;
+                tr.style.display = (statusMatch && qrMatch) ? '' : 'none';
             });
         }
 
