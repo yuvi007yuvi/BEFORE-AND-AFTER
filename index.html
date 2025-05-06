@@ -69,6 +69,8 @@
                     <select id="qrFilter" class="form-select" style="width: auto; min-width: 150px;">
                         <option value="all">All QR Codes</option>
                     </select>
+                    <input type="date" id="startDate" class="form-control" style="width: auto;">
+                    <input type="date" id="endDate" class="form-control" style="width: auto;">
                 </div>
                 <button class="btn btn-dark" onclick="window.print()">Print Report</button>
             </div>
@@ -89,6 +91,7 @@
                                 <th>Status</th>
                                 <th>Supervisor</th>
                                 <th>Ward</th>
+                                <th>Scan Date</th>
                                 <th>Scan Duration</th>
                                 <th>Before Image</th>
                                 <th>After Image</th>
@@ -121,7 +124,7 @@
 
     <script>
         let currentData = [];
-        let currentFilters = { status: 'all', qrCode: 'all' };
+        let currentFilters = { status: 'all', qrCode: 'all', startDate: '', endDate: '' };
 
         document.getElementById('csvFile').addEventListener('change', handleFileUpload);
 
@@ -243,6 +246,7 @@
             data.forEach(row => {
                 const tr = document.createElement('tr');
                 tr.dataset.status = row['After Scan'] === 'null' ? 'pending' : 'completed';
+                tr.dataset.scanDate = row['Before Scan'];
 
                 // QR Code
                 const tdQr = document.createElement('td');
@@ -266,6 +270,11 @@
                 // Ward
                 const tdWard = document.createElement('td');
                 tdWard.textContent = row.Ward;
+
+                // Scan Date
+                const tdScanDate = document.createElement('td');
+                const scanDate = new Date(row['Before Scan']);
+                tdScanDate.textContent = scanDate.toLocaleDateString();
 
                 // Scan Duration
                 const tdDuration = document.createElement('td');
@@ -298,7 +307,7 @@
                 }
 
                 // Append all cells
-                tr.append(tdQr, tdStatus, tdSupervisor, tdWard, tdDuration, tdBeforeImage, tdAfterImage);
+                tr.append(tdQr, tdStatus, tdSupervisor, tdWard, tdScanDate, tdDuration, tdBeforeImage, tdAfterImage);
                 tbody.appendChild(tr);
             });
         }
@@ -333,6 +342,16 @@
                 currentFilters.qrCode = e.target.value;
                 applyFilters();
             });
+
+            document.getElementById('startDate').addEventListener('change', (e) => {
+                currentFilters.startDate = e.target.value;
+                applyFilters();
+            });
+
+            document.getElementById('endDate').addEventListener('change', (e) => {
+                currentFilters.endDate = e.target.value;
+                applyFilters();
+            });
         }
 
         function applyFilters() {
@@ -341,7 +360,14 @@
                                    tr.dataset.status === currentFilters.status;
                 const qrMatch = currentFilters.qrCode === 'all' || 
                                tr.querySelector('td:first-child').textContent === currentFilters.qrCode;
-                tr.style.display = (statusMatch && qrMatch) ? '' : 'none';
+                
+                const scanDate = new Date(tr.dataset.scanDate);
+                const startDate = currentFilters.startDate ? new Date(currentFilters.startDate) : null;
+                const endDate = currentFilters.endDate ? new Date(currentFilters.endDate) : null;
+                
+                const dateMatch = (!startDate || scanDate >= startDate) && (!endDate || scanDate <= endDate);
+                
+                tr.style.display = (statusMatch && qrMatch && dateMatch) ? '' : 'none';
             });
         }
 
